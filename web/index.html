@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Taskboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Taskboard</h1>
+    <form id="add-form">
+      <input name="title" placeholder="New task" maxlength="120" required>
+      <button type="submit">Add</button>
+    </form>
+  </header>
+
+  <main class="board">
+    <section class="column" data-status="todo">
+      <h2>To do <span class="count"></span></h2>
+      <ul class="tasks"></ul>
+    </section>
+    <section class="column" data-status="doing">
+      <h2>In progress <span class="count"></span></h2>
+      <ul class="tasks"></ul>
+    </section>
+    <section class="column" data-status="done">
+      <h2>Done <span class="count"></span></h2>
+      <ul class="tasks"></ul>
+    </section>
+  </main>
+
+  <p id="error" class="error" hidden>Cannot reach the API.</p>
+
+  <script src="app.js"></script>
+</body>
+</html>

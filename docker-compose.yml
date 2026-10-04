@@ -1,0 +1,41 @@
+# Local development. The Kubernetes version of the same setup is in k8s/.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: taskboard
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-devpassword}
+      POSTGRES_DB: taskboard
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taskboard"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./api
+    image: taskboard-api:1.0.0
+    environment:
+      DATABASE_URL: postgresql://taskboard:${DB_PASSWORD:-devpassword}@db:5432/taskboard
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz')"]
+      interval: 10s
+      timeout: 4s
+      retries: 5
+
+  web:
+    build: ./web
+    image: taskboard-web:1.0.0
+    ports:
+      - "8093:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  db-data:

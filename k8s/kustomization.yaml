@@ -1,0 +1,19 @@
+# Apply everything with:  kubectl apply -k k8s/
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: taskboard
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - postgres.yaml
+  - api.yaml
+  - web.yaml
+  - ingress.yaml
+  - hpa.yaml
+  - networkpolicy.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: taskboard

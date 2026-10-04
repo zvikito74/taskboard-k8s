@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run API tests
+        run: |
+          pip install flask pytest
+          pytest api -q
+
+  manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Render the manifests with Kustomize
+        run: kubectl kustomize k8s/ > rendered.yaml
+
+      - name: Validate them against the Kubernetes API schemas
+        run: |
+          docker run --rm -v "$PWD:/work" ghcr.io/yannh/kubeconform:latest \
+            -strict -summary /work/rendered.yaml
+
+  deploy-to-kind:
+    runs-on: ubuntu-latest
+    needs: [test, manifests]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the images
+        run: docker compose build
+
+      - name: Create a throwaway cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: ci
+
+      - name: Load the images into the cluster
+        run: kind load docker-image taskboard-api:1.0.0 taskboard-web:1.0.0 --name ci
+
+      - name: Deploy
+        run: |
+          kubectl create namespace taskboard
+          kubectl -n taskboard create secret generic taskboard-db --from-literal=password=ci-password
+          kubectl apply -k k8s/
+          kubectl -n taskboard rollout status statefulset/db --timeout=180s
+          kubectl -n taskboard rollout status deployment/api --timeout=180s
+          kubectl -n taskboard rollout status deployment/web --timeout=180s
+
+      - name: Smoke test through the web Service
+        run: |
+          kubectl -n taskboard port-forward svc/web 8080:80 &
+          sleep 5
+          curl --fail --silent -X POST http://localhost:8080/api/tasks \
+            -H "Content-Type: application/json" -d '{"title":"created by CI"}'
+          curl --fail --silent http://localhost:8080/api/tasks | grep -q "created by CI"
+
+      - name: Cluster state on failure
+        if: failure()
+        run: |
+          kubectl -n taskboard get pods
+          kubectl -n taskboard describe pods

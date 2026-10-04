@@ -1,0 +1,77 @@
+# PostgreSQL as a StatefulSet: one pod with a stable name and its own disk.
+apiVersion: v1
+kind: Service
+metadata:
+  name: db
+spec:
+  clusterIP: None # headless: the name "db" resolves straight to the pod
+  selector:
+    app: db
+  ports:
+    - port: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: db
+spec:
+  serviceName: db
+  replicas: 1
+  selector:
+    matchLabels:
+      app: db
+  template:
+    metadata:
+      labels:
+        app: db
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70 # the "postgres" user in the Alpine image
+        runAsGroup: 70
+        fsGroup: 70 # makes the mounted disk writable for that user
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef: { name: taskboard-config, key: DB_USER }
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef: { name: taskboard-config, key: DB_NAME }
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: taskboard-db, key: password }
+            # Keep the data in a subfolder; the disk's top level may contain lost+found
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi

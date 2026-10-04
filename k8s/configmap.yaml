@@ -1,0 +1,10 @@
+# Non-secret settings shared by the database and the API.
+# The password is not here; it lives in the "taskboard-db" Secret (see README).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: taskboard-config
+data:
+  DB_HOST: db
+  DB_NAME: taskboard
+  DB_USER: taskboard

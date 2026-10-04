@@ -1,0 +1,19 @@
+# Routes http://taskboard.local to the web Service.
+# Needs an ingress controller in the cluster (for example ingress-nginx).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: taskboard
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: taskboard.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 80
